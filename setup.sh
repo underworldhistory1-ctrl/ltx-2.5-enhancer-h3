@@ -22,6 +22,7 @@ echo "[2/6] Checking ComfyUI backend..."
 if [ ! -d "$DIR/comfy_backend" ]; then
     echo "Cloning official ComfyUI into $DIR/comfy_backend..."
     git clone https://github.com/comfyanonymous/ComfyUI.git "$DIR/comfy_backend"
+    git -C "$DIR/comfy_backend" checkout --detach b65d1ffaca35fcda5889e120dcd0c8520553c7b2
 else
     echo "ComfyUI backend already exists in $DIR/comfy_backend."
 fi

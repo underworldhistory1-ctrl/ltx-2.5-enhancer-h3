@@ -82,6 +82,7 @@ bash setup.sh
 ```
 
 For a temporary server, clone this repository onto that server's temporary disk and set `LTX_BASE_DIR` to the absolute clone path. `setup.sh` writes the model search path for that location. Point `PYTHON_EXE` at a Python environment with the ComfyUI and LTXVideo dependencies installed; the launch scripts use that interpreter. The model weights are not stored in Git and must be present under `models/` before rendering.
+Fresh setup pins ComfyUI to the revision used for the successful 15-second RTX 5090 render. Existing backends are left in place so a live session is not replaced during setup.
 
 ### 3. Download Models
 Download all required model weights automatically (~41 GB total):
