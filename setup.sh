@@ -67,16 +67,14 @@ fi
 
 # 6. Model paths config
 echo "[6/6] Verifying extra_model_paths.yaml..."
-if [ ! -f "$DIR/models/extra_model_paths.yaml" ]; then
-    cat << 'EOF' > "$DIR/models/extra_model_paths.yaml"
+cat > "$DIR/models/extra_model_paths.yaml" <<EOF
 ltx_models:
-    base_path: ./models
+    base_path: $DIR/models
     diffusion_models: diffusion_models
     text_encoders: text_encoders
     vae: vae
     loras: loras
 EOF
-fi
 
 echo ""
 echo "=========================================================="

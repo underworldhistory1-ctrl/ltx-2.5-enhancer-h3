@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 logger = logging.getLogger("ltx.stats")
 
-DEFAULT_BASE = "/root/ltx-enhancer" if os.path.exists("/root/ltx-enhancer") else os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DEFAULT_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BASE_DIR = os.environ.get("LTX_BASE_DIR", DEFAULT_BASE)
 STATS_FILE = os.path.join(BASE_DIR, "stats.json")
 

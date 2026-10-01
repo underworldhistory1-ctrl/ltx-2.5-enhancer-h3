@@ -3,18 +3,20 @@ import sys
 import time
 import urllib.request
 
+BASE_DIR = os.environ.get("LTX_BASE_DIR", os.path.dirname(os.path.abspath(__file__)))
+
 MODELS = [
     {
         "name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
         "url": "https://www.modelscope.cn/api/v1/models/Lightricks/LTX-2.5/repo?Revision=master&FilePath=text_encoders%2Fgemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-        "dest": "/root/ltx-enhancer/models/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-        "expected_size": 15372545808 # ~15.37 GB
+        "dest": os.path.join(BASE_DIR, "models", "text_encoders", "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors"),
+        "expected_size": 15372969374 # verified model size
     },
     {
         "name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
         "url": "https://www.modelscope.cn/api/v1/models/Lightricks/LTX-2.5/repo?Revision=master&FilePath=diffusion_models%2Fltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
-        "dest": "/root/ltx-enhancer/models/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
-        "expected_size": 21503348736 # ~21.5 GB
+        "dest": os.path.join(BASE_DIR, "models", "diffusion_models", "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"),
+        "expected_size": 21504034224 # verified model size
     }
 ]
 
@@ -28,7 +30,7 @@ def download_file(item):
     
     if os.path.exists(dest):
         actual_size = os.path.getsize(dest)
-        if actual_size > 1000000000: # over 1 GB
+        if actual_size == item["expected_size"]:
             print(f"[SKIP] {name} already exists ({actual_size / 1e9:.2f} GB).", flush=True)
             return
 
@@ -86,6 +88,9 @@ def download_file(item):
                             print(f"  {name}: {downloaded / 1e9:.2f} GB / {total_gb:.2f} GB ({pct:.1f}%) @ {speed_mb:.1f} MB/s", flush=True)
                             last_log_time = now
                             last_downloaded = downloaded
+
+            if os.path.getsize(tmp_path) != item["expected_size"]:
+                raise RuntimeError(f"Incomplete {name}: {os.path.getsize(tmp_path)} of {item['expected_size']} bytes")
 
             # Success
             os.rename(tmp_path, dest)

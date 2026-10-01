@@ -8,7 +8,7 @@ import aiohttp
 
 logger = logging.getLogger("ltx.gpu_manager")
 
-DEFAULT_BASE = "/root/ltx-enhancer" if os.path.exists("/root/ltx-enhancer") else os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DEFAULT_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BASE_DIR = os.environ.get("LTX_BASE_DIR", DEFAULT_BASE)
 JOBS_DB_PATH = os.path.join(BASE_DIR, "jobs.json")
 

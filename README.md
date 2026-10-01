@@ -71,8 +71,8 @@ ltx-enhancer/
 ### 2. Installation
 Clone the repository and run the setup script:
 ```bash
-git clone https://github.com/underworldhistory1-ctrl/ltx-2.5-enhancer.git
-cd ltx-2.5-enhancer
+git clone https://github.com/underworldhistory1-ctrl/ltx-2.5-enhancer-h3.git
+cd ltx-2.5-enhancer-h3
 
 # Make scripts executable
 chmod +x *.sh
@@ -80,6 +80,8 @@ chmod +x *.sh
 # Run turnkey setup
 bash setup.sh
 ```
+
+For a temporary server, clone this repository onto that server's temporary disk and set `LTX_BASE_DIR` to the absolute clone path. `setup.sh` writes the model search path for that location. Point `PYTHON_EXE` at a Python environment with the ComfyUI and LTXVideo dependencies installed; the launch scripts use that interpreter. The model weights are not stored in Git and must be present under `models/` before rendering.
 
 ### 3. Download Models
 Download all required model weights automatically (~41 GB total):

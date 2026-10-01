@@ -13,7 +13,7 @@ from pipeline import LTXPipeline
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("ltx.server")
 
-DEFAULT_BASE = "/root/ltx-enhancer" if os.path.exists("/root/ltx-enhancer") else os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DEFAULT_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BASE_DIR = os.environ.get("LTX_BASE_DIR", DEFAULT_BASE)
 INPUTS_DIR = os.path.join(BASE_DIR, "inputs")
 OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs")
@@ -55,7 +55,7 @@ async def handle_gpu_status(request):
         pass
 
     # Check transformer download progress
-    transformer_path = "/root/ltx-enhancer/models/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"
+    transformer_path = os.path.join(BASE_DIR, "models", "diffusion_models", "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors")
     transformer_tmp = transformer_path + ".tmp"
     model_ready = os.path.exists(transformer_path)
     model_download_gb = 0

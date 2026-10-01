@@ -4,7 +4,7 @@ import time
 import argparse
 import urllib.request
 
-DEFAULT_BASE = "/root/ltx-enhancer" if os.path.exists("/root/ltx-enhancer") else os.path.abspath(os.path.dirname(__file__))
+DEFAULT_BASE = os.path.abspath(os.path.dirname(__file__))
 BASE_DIR = os.environ.get("LTX_BASE_DIR", DEFAULT_BASE)
 LORAS_DIR = os.path.join(BASE_DIR, "models", "loras")
 
@@ -30,7 +30,7 @@ def download_lora(item, hf_token=None):
     dest = os.path.join(LORAS_DIR, name)
     os.makedirs(LORAS_DIR, exist_ok=True)
 
-    if os.path.exists(dest) and os.path.getsize(dest) > 100000000:
+    if os.path.exists(dest) and os.path.getsize(dest) == item["expected_size"]:
         print(f"[SKIP] {name} already exists ({round(os.path.getsize(dest)/1e9, 2)} GB).")
         return
 
@@ -45,6 +45,8 @@ def download_lora(item, hf_token=None):
             token=token,
             local_dir=LORAS_DIR
         )
+        if os.path.getsize(downloaded_path) != item["expected_size"]:
+            raise RuntimeError(f"Incomplete {name} download")
         print(f"[COMPLETE] {name} saved successfully via huggingface_hub!")
         return
     except Exception as e:
@@ -70,6 +72,8 @@ def download_lora(item, hf_token=None):
             print(f"[START] Downloading {name} (attempt {attempt}/{max_retries})...")
             with urllib.request.urlopen(req, timeout=30) as resp:
                 mode = "ab" if existing_bytes > 0 and resp.status == 206 else "wb"
+                if mode == "wb":
+                    existing_bytes = 0
                 total_size = item["expected_size"]
 
                 downloaded = existing_bytes
@@ -94,7 +98,9 @@ def download_lora(item, hf_token=None):
                             last_log_time = now
                             last_downloaded = downloaded
 
-            os.rename(tmp_path, dest)
+            if os.path.getsize(tmp_path) != item["expected_size"]:
+                raise RuntimeError(f"Incomplete {name} download")
+            os.replace(tmp_path, dest)
             print(f"[COMPLETE] {name} successfully saved ({os.path.getsize(dest) / 1e9:.2f} GB)!\n")
             return
         except Exception as e:

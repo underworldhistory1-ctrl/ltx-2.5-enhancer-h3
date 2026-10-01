@@ -19,7 +19,7 @@ logger = logging.getLogger("ltx.pipeline")
 BASE_URL = "http://127.0.0.1:8189"
 WS_URL = "http://127.0.0.1:8189/ws"
 
-DEFAULT_BASE = "/root/ltx-enhancer" if os.path.exists("/root/ltx-enhancer") else os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DEFAULT_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BASE_DIR = os.environ.get("LTX_BASE_DIR", DEFAULT_BASE)
 TRANSFORMER_PATH = os.path.join(BASE_DIR, "models", "diffusion_models", "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors")
 TRANSFORMER_TMP_PATH = TRANSFORMER_PATH + ".tmp"

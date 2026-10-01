@@ -15,7 +15,7 @@ def handle_signal(sig, frame):
 signal.signal(signal.SIGTERM, handle_signal)
 signal.signal(signal.SIGINT, handle_signal)
 
-DEFAULT_BASE = "/root/ltx-enhancer" if os.path.exists("/root/ltx-enhancer") else os.path.abspath(os.path.dirname(__file__))
+DEFAULT_BASE = os.path.abspath(os.path.dirname(__file__))
 BASE_DIR = os.environ.get("LTX_BASE_DIR", DEFAULT_BASE)
 
 # Python binary fallback
