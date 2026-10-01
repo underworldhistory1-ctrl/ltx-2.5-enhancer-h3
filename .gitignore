@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.backup*
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Model weights & Safetensors (Heavy files - download using download_models.py)
+models/diffusion_models/*.safetensors
+models/diffusion_models/*.tmp
+models/text_encoders/*.safetensors
+models/text_encoders/*.tmp
+models/vae/*.safetensors
+models/vae/*.tmp
+models/loras/*.safetensors
+models/loras/*.tmp
+models/loras/.cache/
+*.safetensors
+*.bin
+*.ckpt
+*.pt
+*.pth
+
+# Large video inputs, outputs, and runtime caches
+inputs/*
+!inputs/.gitkeep
+outputs/*
+!outputs/.gitkeep
+temp/*
+!temp/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# State & database files generated at runtime
+jobs.json
+stats.json
+
+# ComfyUI clone runtime artifacts
+comfy_backend/
+!custom_nodes/
+custom_nodes/ComfyUI-LTXVideo/.git/
+custom_nodes/**/__pycache__/
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LTX 2.5 Studio — Video Enhancement</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Top Navigation Bar (H3 Header Style) -->
+  <header class="top">
+    <div class="brand">
+      <div class="mark">LTX</div>
+      <div class="brand-name">LTX 2.5 Studio</div>
+    </div>
+    <nav class="topnav" aria-label="Studio workspace">
+      <a class="active" href="#enhance">Enhance Video</a>
+      <a href="#gallery">Generations Gallery</a>
+      <a href="#docs" onclick="openDocsModal(); return false;">Model Specs & Tips</a>
+    </nav>
+    <div class="connection" id="connection">
+      <i class="dot" id="connection-dot"></i>
+      <span id="connectionText">Checking GPU & ComfyUI...</span>
+      <span class="vram-pill" id="vram-text">VRAM: -- / 32 GB</span>
+      <button id="retry-btn" class="button alt smallbtn" onclick="updateGpuStatus()">Refresh</button>
+    </div>
+  </header>
+
+  <!-- Model Download Progress Banner (if downloading) -->
+  <div id="model-download-banner" class="model-banner" style="display:none;">
+    <div class="banner-icon">⏳</div>
+    <div class="banner-content">
+      <div class="banner-title">Downloading LTX 2.5 Foundation Weights...</div>
+      <div class="progress-bar-bg" style="height: 6px; margin: 6px 0;">
+        <div id="model-progress-fill" class="progress-bar-fill"></div>
+      </div>
+      <div id="model-progress-text" class="banner-sub">-- GB / 21.5 GB (--%) • Any submitted jobs will safely queue and start automatically</div>
+    </div>
+  </div>
+
+  <!-- 2-Column Shell Layout (H3 Style) -->
+  <main class="shell">
+    <!-- Left Sidebar: Controls & Options -->
+    <aside class="left">
+      <div class="sidebar-scroll">
+        <div class="section-tabs">
+          <span>Enhance Video</span>
+          <span>LTX 2.5 IC-LoRA</span>
+        </div>
+
+        <!-- Model Hero Card (H3 Signature Style) -->
+        <div class="model-hero">
+          <div class="eyebrow">MODEL • LTX 2.5 22B DISTILLED</div>
+          <h1>LTX 2.5 Enhancer</h1>
+          <p>Tiled Latent Fusion • Refine & Restore IC-LoRA</p>
+        </div>
+
+        <!-- Source Video Section -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>1. Source Video</h2>
+            <span class="tip">MP4, MOV, WebM</span>
+          </div>
+
+          <!-- Dropzone -->
+          <div id="dropzone" class="dropzone">
+            <input type="file" id="file-input" class="file-picker" accept="video/mp4,video/quicktime,video/webm">
+            <div class="dropzone-content">
+              <svg class="upload-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <div class="drop-text">Drag & drop source video, or <span class="highlight">browse</span></div>
+              <div class="drop-sub">Up to 1 GB • Preserves original audio & sync</div>
+            </div>
+            <div id="upload-progress-container" class="upload-progress-container" style="display:none;">
+              <div class="progress-bar-bg">
+                <div id="upload-progress-bar" class="progress-bar-fill"></div>
+              </div>
+              <span id="upload-status-text">Uploading...</span>
+            </div>
+          </div>
+
+          <!-- Uploaded Preview Details -->
+          <div id="source-preview-card" class="preview-card" style="display:none; margin-top: 12px;">
+            <video id="source-video-player" controls preload="metadata"></video>
+            <div class="video-meta-tags">
+              <span id="meta-res" class="meta-tag">--x--</span>
+              <span id="meta-fps" class="meta-tag">-- fps</span>
+              <span id="meta-duration" class="meta-tag">--s</span>
+              <span id="meta-audio" class="meta-tag">Audio: Yes</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Enhancement Mode -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>2. Enhancement Mode</h2>
+          </div>
+          <div class="modes" role="tablist">
+            <button type="button" class="mode active" data-mode="refine">
+              <strong>Refine Details</strong>
+              <span>Sharpen micro-textures, enhance faces, add cinematic grain</span>
+            </button>
+            <button type="button" class="mode" data-mode="restore">
+              <strong>Restore</strong>
+              <span>Clean heavy compression, de-noise, repair artifacts & color</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Target Resolution -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>3. Target Resolution</h2>
+            <span class="tip">Tiled Latent Fusion</span>
+          </div>
+          <div class="res-grid">
+            <label class="res-option">
+              <input type="radio" name="resolution" value="Original" checked>
+              <span class="res-box">
+                <span class="res-name">Original</span>
+                <span class="res-sub">1x Native</span>
+              </span>
+            </label>
+            <label class="res-option">
+              <input type="radio" name="resolution" value="HD">
+              <span class="res-box">
+                <span class="res-name">HD 720p</span>
+                <span class="res-sub">Clean pass</span>
+              </span>
+            </label>
+            <label class="res-option">
+              <input type="radio" name="resolution" value="FullHD">
+              <span class="res-box recommended">
+                <span class="res-name">2K / FHD</span>
+                <span class="res-sub">1080p Recommended</span>
+              </span>
+            </label>
+            <label class="res-option">
+              <input type="radio" name="resolution" value="4K">
+              <span class="res-box">
+                <span class="res-name">4K UHD</span>
+                <span class="res-sub">2160p Max</span>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Strength Slider -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Enhancement Strength (IC-LoRA)</h2>
+            <span id="strength-val" class="slider-badge">1.00</span>
+          </div>
+          <input type="range" id="strength-slider" min="0.2" max="1.5" step="0.05" value="1.00">
+          <div class="tip" style="margin-top: 6px;">0.80–1.10 provides optimal natural fidelity without hallucination.</div>
+        </section>
+
+        <!-- Prompt Guidance (Text Conditioning) -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Prompt Guidance <span class="tip">(Optional)</span></h2>
+          </div>
+          <textarea id="positive-prompt" rows="2" placeholder="e.g. ultra sharp focus, cinematic lighting, photorealistic textures, 8k resolution"></textarea>
+          <div class="prompt-chips">
+            <span class="chip" onclick="appendPrompt('cinematic lighting, photorealistic')">+ Cinematic</span>
+            <span class="chip" onclick="appendPrompt('sharp focus, natural film grain')">+ Sharp Grain</span>
+            <span class="chip" onclick="appendPrompt('vibrant color, high contrast')">+ Vibrant</span>
+            <span class="chip" onclick="appendPrompt('smooth motion, clear details')">+ Clear</span>
+          </div>
+        </section>
+
+        <!-- Seed & Audio Controls -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Seed & Audio</h2>
+          </div>
+          <div class="seed-row">
+            <div class="seed-input-wrapper">
+              <label for="seed-input">SEED</label>
+              <input type="number" id="seed-input" value="42">
+            </div>
+            <button type="button" class="button alt" id="random-seed-btn" onclick="randomizeSeed()">🎲 Random</button>
+          </div>
+          <div style="margin-top: 12px;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="audio-toggle-input" checked>
+              <span>Keep original audio track (Lossless sync)</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Big Primary Action Button -->
+        <div style="margin: 20px 0 30px;">
+          <button id="enhance-btn" class="primary-btn" disabled>
+            <span class="btn-icon">⚡</span>
+            <span>Enhance Video</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Main Area: Live Rendering & Generations Gallery -->
+    <section class="right">
+      <!-- Section 1: Active Rendering Queue Card -->
+      <div id="queue-status-card" class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <h3>Processing Queue</h3>
+            <span id="queue-summary" class="badge">Idle</span>
+          </div>
+          <span id="benchmark-pill" class="benchmark-pill">⚡ Speed: Calibrating...</span>
+        </div>
+        <div id="jobs-list" class="jobs-list">
+          <div class="empty-state">No jobs currently processing. Upload a video on the left to start.</div>
+        </div>
+      </div>
+
+      <!-- Section 2: Enhanced Output Video Player -->
+      <div id="output-result-card" class="card" style="display:none; margin-top: 24px;">
+        <div class="card-header">
+          <div class="card-header-left">
+            <h3 id="player-title">Enhanced Output Result</h3>
+            <span class="badge acid-badge">Ready</span>
+          </div>
+          <div class="card-header-right">
+            <a id="download-btn" class="button acid-btn" href="#" download>
+              ⬇️ Download MP4
+            </a>
+          </div>
+        </div>
+        <div class="result-player-wrapper">
+          <video id="output-video-player" controls autoplay playsinline></video>
+        </div>
+      </div>
+
+      <!-- Section 3: Generations Gallery (سجل المعالجات) -->
+      <div id="history-card" class="card" style="margin-top: 24px;">
+        <div class="card-header">
+          <div class="card-header-left">
+            <h3>Generations Gallery (سجل المعالجات)</h3>
+            <span id="history-count" class="badge">0 completed</span>
+          </div>
+        </div>
+        <div id="history-list" class="history-list">
+          <div class="empty-state">No completed generations yet.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Help / Docs Modal -->
+  <div id="docs-modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>LTX 2.5 Architecture & Quick Tips</h3>
+        <button class="modal-close" onclick="closeDocsModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Refine Details:</strong> Uses the official IC-LoRA (1.0) with distilled 8-step sampling. Ideal for high-fidelity videos that need micro-textures, crisper edges, and natural photographic grain.</p>
+        <p><strong>Restore:</strong> Specifically tuned for heavily compressed, blurry, or low-bitrate clips. Removes blocky compression artifacts and stabilizes temporal flickering.</p>
+        <p><strong>GPU Mutual Exclusivity:</strong> The studio continuously monitors Minimax H3 on port 8188 and external GPU usage. If H3 is rendering, LTX jobs automatically wait safely in queue without conflicting for VRAM.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
