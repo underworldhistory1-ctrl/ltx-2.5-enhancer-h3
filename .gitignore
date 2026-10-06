@@ -52,3 +52,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+*.bak
+download_progress.json
+download_status.txt
+download_with_bar.py

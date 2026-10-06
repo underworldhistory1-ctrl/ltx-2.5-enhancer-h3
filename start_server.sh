@@ -2,21 +2,29 @@
 set -e
 
 DIR="${LTX_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-mkdir -p "$DIR/logs"
+mkdir -p "$DIR/logs" "$DIR/inputs" "$DIR/outputs"
 
-# Determine python binary
-PYTHON_BIN="${PYTHON_EXE:-/output/h3-stack/ComfyUI/ComfyUI/.venv/bin/python}"
-if [ ! -f "$PYTHON_BIN" ]; then
-    PYTHON_BIN="$(command -v python3 || command -v python)"
-fi
+# Auto-detect python binary
+PYTHON_BIN=""
+for candidate in \
+    "$PYTHON_EXE" \
+    "/output/h3-stack/ComfyUI/ComfyUI/.venv/bin/python" \
+    "/output/h3-studio-v2/.venv/bin/python" \
+    "$(which python3 2>/dev/null)" \
+    "$(which python 2>/dev/null)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        PYTHON_BIN="$candidate"
+        break
+    fi
+done
 
 echo "Checking if web studio on port 7860 is already running..."
-if curl -s http://127.0.0.1:7860/api/gpu_status >/dev/null 2>&1; then
+if curl -s http://127.0.0.1:7860/api/jobs >/dev/null 2>&1; then
     echo "Web studio on port 7860 is already running."
 else
-    echo "Launching LTX Web Studio on 0.0.0.0:7860 with $PYTHON_BIN..."
+    echo "Launching Web Studio on port 7860 with $PYTHON_BIN..."
     cd "$DIR/app"
     nohup "$PYTHON_BIN" server.py \
         > "$DIR/logs/web_server.log" 2>&1 &
-    echo "Web studio started (PID: $!)."
+    echo "Web Studio started (PID: $!)."
 fi

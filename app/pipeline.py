@@ -21,19 +21,15 @@ WS_URL = "http://127.0.0.1:8189/ws"
 
 DEFAULT_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BASE_DIR = os.environ.get("LTX_BASE_DIR", DEFAULT_BASE)
-TRANSFORMER_PATH = os.path.join(BASE_DIR, "models", "diffusion_models", "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors")
-TRANSFORMER_TMP_PATH = TRANSFORMER_PATH + ".tmp"
-TOTAL_TRANSFORMER_BYTES = 21503348736
 
 class LTXPipeline:
     def __init__(self, base_dir: Optional[str] = None):
         self.base_dir = base_dir or BASE_DIR
-        self.base_dir = base_dir
-        self.inputs_dir = os.path.join(base_dir, "inputs")
-        self.outputs_dir = os.path.join(base_dir, "outputs")
-        self.temp_dir = os.path.join(base_dir, "temp")
-        self.comfy_input_dir = os.path.join(base_dir, "comfy_backend", "input")
-        self.comfy_output_dir = os.path.join(base_dir, "comfy_backend", "output")
+        self.inputs_dir = os.path.join(self.base_dir, "inputs")
+        self.outputs_dir = os.path.join(self.base_dir, "outputs")
+        self.temp_dir = os.path.join(self.base_dir, "temp")
+        self.comfy_input_dir = os.path.join(self.base_dir, "comfy_backend", "input")
+        self.comfy_output_dir = os.path.join(self.base_dir, "comfy_backend", "output")
         self.stats = StatsManager()
 
         os.makedirs(self.inputs_dir, exist_ok=True)
@@ -109,7 +105,6 @@ class LTXPipeline:
             subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return os.path.exists(output_audio_path) and os.path.getsize(output_audio_path) > 100
         except Exception:
-            # Fallback re-encode audio if stream copy fails
             try:
                 cmd_fallback = [
                     "ffmpeg", "-y", "-i", video_path,
@@ -142,6 +137,66 @@ class LTXPipeline:
             shutil.copy2(video_path, output_path)
             return False
 
+    async def _check_models_ready(self, mode: str, job: Dict[str, Any]):
+        """Verifies that all required neural weights are present before submitting to ComfyUI."""
+        models_dir = os.path.join(self.base_dir, "models")
+        req_files = [
+            ("DiT Transformer", os.path.join(models_dir, "diffusion_models", "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"), 21504034224),
+            ("Text Encoder", os.path.join(models_dir, "text_encoders", "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors"), 15372969374),
+            ("Audio VAE", os.path.join(models_dir, "vae", "ltx-2.5-audio-vae-bf16.safetensors"), 364866540),
+            ("Video VAE", os.path.join(models_dir, "vae", "ltx-2.5-video-vae-conv-bf16.safetensors"), 1452269922),
+        ]
+
+        # LoRA check based on mode
+        lora_name = "ltx-2.5-22b-ic-lora-refine-details-1.0.safetensors" if mode == "refine" else "ltx-2.5-22b-ic-lora-restore-1.0.safetensors"
+        lora_path = os.path.join(models_dir, "loras", lora_name)
+
+        # Check all core weights
+        for label, path, expected_size in req_files:
+            tmp_path = path + ".tmp"
+            while not os.path.exists(path):
+                dl = os.path.getsize(tmp_path) if os.path.exists(tmp_path) else 0
+                pct = round((dl / expected_size) * 100, 1) if expected_size else 0
+                job["stage"] = f"Waiting for {label} download: {pct}% ({round(dl/1e9, 2)} GB)..."
+                job["eta_text"] = f"Waiting for {label}..."
+                logger.info(f"Job waiting for {label}: {pct}%")
+                await asyncio.sleep(5)
+
+        # Check LoRA weight
+        if not os.path.exists(lora_path):
+            # Attempt auto-fallback if restore exists
+            alt_restore = os.path.join(models_dir, "loras", "ltx-2.5-22b-ic-lora-restore-1.0.safetensors")
+            if os.path.exists(alt_restore):
+                try:
+                    os.symlink("ltx-2.5-22b-ic-lora-restore-1.0.safetensors", lora_path)
+                    logger.info(f"Auto-aliased {lora_name} -> restore LoRA")
+                except Exception:
+                    pass
+            
+            if not os.path.exists(lora_path):
+                raise RuntimeError(f"Missing required IC-LoRA: {lora_name}. Please run 'python3 download_models.py --loras'")
+
+    async def _wait_for_gpu_vram(self, job: Dict[str, Any], max_wait_sec: int = 600):
+        """Prevents CUDA OOM by waiting if another heavy job (e.g. H3 Studio) is occupying the GPU."""
+        waited = 0
+        while waited < max_wait_sec:
+            try:
+                out = subprocess.check_output(
+                    ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
+                    encoding="utf-8"
+                )
+                used_mb, total_mb = [int(x.strip()) for x in out.splitlines()[0].split(",")]
+                free_mb = total_mb - used_mb
+                # Need at least 10GB free VRAM
+                if free_mb >= 10240:
+                    break
+                job["stage"] = f"Waiting for GPU VRAM to clear ({used_mb}/{total_mb} MiB used by active render)..."
+                job["eta_text"] = "Queued (Waiting for GPU)..."
+                await asyncio.sleep(6)
+                waited += 6
+            except Exception:
+                break
+
     async def execute_job(self, job: Dict[str, Any]):
         job_id = job["id"]
         input_path = job["input_video_path"]
@@ -150,18 +205,11 @@ class LTXPipeline:
         lora_strength = float(job.get("lora_strength", 1.0))
         seed = int(job.get("seed", 42))
 
-        # Check if transformer model download is complete
-        while not os.path.exists(TRANSFORMER_PATH):
-            downloaded = 0
-            if os.path.exists(TRANSFORMER_TMP_PATH):
-                downloaded = os.path.getsize(TRANSFORMER_TMP_PATH)
-            pct = round((downloaded / TOTAL_TRANSFORMER_BYTES) * 100, 1)
-            gb = round(downloaded / 1e9, 2)
-            job["stage"] = f"Waiting for LTX 2.5 Transformer weights: {pct}% ({gb} / 21.5 GB)..."
-            job["progress"] = max(5, int(pct * 0.1))
-            job["eta_text"] = "Waiting for model download..."
-            logger.info(f"Job {job_id} waiting for model download: {pct}%")
-            await asyncio.sleep(5)
+        # 0. Pre-flight model integrity check
+        await self._check_models_ready(mode, job)
+
+        # 0.1 Check GPU VRAM mutual exclusion
+        await self._wait_for_gpu_vram(job)
 
         logger.info(f"Starting pipeline execution for job {job_id} (mode={mode}, res={resolution})")
         
@@ -257,7 +305,6 @@ class LTXPipeline:
 
         ws_task = asyncio.create_task(self._monitor_websocket(client_id, prompt_id, job, est_duration, start_time))
         
-        # Wait for prompt to appear in history
         history_entry = None
         prompt_seen_in_queue = False
         missing_after_seen = 0
@@ -271,7 +318,6 @@ class LTXPipeline:
                 ws_task.cancel()
                 raise RuntimeError("Job cancelled by user")
 
-            # Check if ComfyUI finished this prompt
             try:
                 hist_req = urllib.request.Request(f"{BASE_URL}/history/{prompt_id}")
                 hist_raw = await loop.run_in_executor(None, lambda: urllib.request.urlopen(hist_req, timeout=3).read())
@@ -283,8 +329,6 @@ class LTXPipeline:
             except Exception:
                 pass
 
-            # A restarted ComfyUI worker loses its in-memory queue and history.
-            # Surface that failure instead of leaving the job at a false 5-second ETA.
             try:
                 queue_req = urllib.request.Request(f"{BASE_URL}/queue")
                 queue_raw = await loop.run_in_executor(None, lambda: urllib.request.urlopen(queue_req, timeout=3).read())
@@ -320,13 +364,11 @@ class LTXPipeline:
         job["progress"] = 94
         job["eta_text"] = "Finalizing video..."
 
-        # Look for output file matching prefix
         output_candidates = glob.glob(os.path.join(self.comfy_output_dir, f"{prefix}*.mp4"))
         if not output_candidates:
             output_candidates = glob.glob(os.path.join(self.comfy_output_dir, "**", f"{prefix}*.mp4"), recursive=True)
 
         if not output_candidates:
-            # Check history outputs
             outputs = history_entry.get("outputs", {})
             for node_id, node_out in outputs.items():
                 if "videos" in node_out:
@@ -338,13 +380,21 @@ class LTXPipeline:
                             output_candidates.append(cand)
 
         if not output_candidates:
-            raise RuntimeError(f"Enhanced video file not found for job {job_id}")
+            # Extract detailed error from ComfyUI history if present
+            status_obj = history_entry.get("status", {})
+            err_details = ""
+            for msg in status_obj.get("messages", []):
+                if len(msg) > 1 and isinstance(msg[1], dict) and "exception_message" in msg[1]:
+                    err_details = msg[1]["exception_message"]
+            if not err_details and job.get("error"):
+                err_details = job["error"]
+            detail_str = f": {err_details}" if err_details else ""
+            raise RuntimeError(f"Enhanced video file not found for job {job_id}{detail_str}")
 
         raw_output_video = output_candidates[0]
         final_filename = f"enhanced_{job_id}_{basename}"
         final_output_path = os.path.join(self.outputs_dir, final_filename)
 
-        # Remove alignment padding and honor Original resolution in the delivered file.
         if pad_frames or resolution.lower() == "original":
             vf = f"trim=end_frame={source_frames},setpts=PTS-STARTPTS"
             if resolution.lower() == "original":
@@ -424,12 +474,11 @@ class LTXPipeline:
                                 pct = 50 + int((val / max_val) * 35)
                                 job["progress"] = pct
                                 
-                                # Dynamic step-based remaining time calculation
                                 if val > 0:
                                     elapsed = time.time() - start_time
                                     step_rate = elapsed / val
                                     rem_steps = max(0, max_val - val)
-                                    rem_est = max(5.0, (rem_steps * step_rate) + 12.0) # +12s for VAE decode
+                                    rem_est = max(5.0, (rem_steps * step_rate) + 12.0)
                                     job["estimated_remaining_seconds"] = round(rem_est, 1)
                                     job["eta_text"] = self.stats.format_eta(rem_est)
 

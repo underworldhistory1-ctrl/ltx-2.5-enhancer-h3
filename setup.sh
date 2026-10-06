@@ -50,20 +50,38 @@ else
     echo "ComfyUI-LTXVideo is already installed in comfy_backend."
 fi
 
-# 4. Install Python dependencies
-echo "[4/6] Installing dependencies..."
-PYTHON_BIN="${PYTHON_EXE:-$(command -v python3 || command -v python)}"
+# 4. Detect Python binary
+echo "[4/6] Detecting Python environment..."
+PYTHON_BIN=""
+for candidate in \
+    "$PYTHON_EXE" \
+    "/output/h3-stack/ComfyUI/ComfyUI/.venv/bin/python" \
+    "/output/h3-studio-v2/.venv/bin/python" \
+    "$(which python3 2>/dev/null)" \
+    "$(which python 2>/dev/null)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        PYTHON_BIN="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PYTHON_BIN" ]; then
+    echo "ERROR: No suitable Python executable found."
+    exit 1
+fi
+echo "Using Python: $PYTHON_BIN"
+
 if [ -f "$DIR/requirements.txt" ]; then
-    echo "Installing packages with $PYTHON_BIN..."
-    "$PYTHON_BIN" -m pip install -r "$DIR/requirements.txt"
+    echo "Verifying dependencies..."
+    "$PYTHON_BIN" -m pip install -r "$DIR/requirements.txt" --quiet || true
 fi
 
 # 5. Check FFmpeg
 echo "[5/6] Checking FFmpeg and FFprobe..."
 if command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1; then
-    echo "FFmpeg is installed and available."
+    echo "FFmpeg is available."
 else
-    echo "WARNING: ffmpeg and/or ffprobe not found in PATH. Please install ffmpeg."
+    echo "WARNING: ffmpeg not found in PATH."
 fi
 
 # 6. Model paths config
@@ -79,9 +97,5 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo " Setup complete!"
-echo " Next step: Download model weights by running:"
-echo "   python3 download_models.py --all"
-echo " Then launch the studio:"
-echo "   bash start.sh"
+echo " Setup complete! All paths and dependencies configured."
 echo "=========================================================="

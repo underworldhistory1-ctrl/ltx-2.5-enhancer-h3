@@ -1,5 +1,5 @@
 ltx_models:
-    base_path: ./models
+    base_path: /shared/ltx-2.5-enhancer-h3/models
     diffusion_models: diffusion_models
     text_encoders: text_encoders
     vae: vae
