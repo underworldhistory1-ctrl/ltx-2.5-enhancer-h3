@@ -1,0 +1,60 @@
+# ==============================================================================
+# Git Ignore for LTX 2.5 Video Enhancement Studio
+# ==============================================================================
+
+# Model weights and partial downloads
+models/*
+!models/README.md
+*.safetensors
+*.gguf
+*.pt
+*.bin
+*.onnx
+*.part
+*.part.json
+
+# Isolated virtual environments
+venv/
+.venv/
+env/
+
+# Third-party submodules / dynamic checkouts
+ComfyUI/
+
+# Runtime and execution state
+state/
+!state/.gitkeep
+logs/*
+!logs/.gitkeep
+jobs/*
+!jobs/.gitkeep
+inputs/*
+!inputs/.gitkeep
+outputs/*
+!outputs/.gitkeep
+uploads/*
+!uploads/.gitkeep
+cache/*
+!cache/.gitkeep
+comfy_io/*
+!comfy_io/.gitkeep
+
+# Sensitive tokens and temporary locks
+state/internal.token
+state/hf.token
+.install.lock
+*.pid
+*.tmp
+
+# Python bytecode and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini

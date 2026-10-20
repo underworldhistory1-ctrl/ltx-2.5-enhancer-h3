@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LTX 2.5 Video Enhancement Studio — ReDetail 2.0</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ==================== FIXED LIVE DOWNLOAD & INSTALL BANNER ==================== -->
+  <div id="install-banner" class="install-banner" style="display:none;">
+    <div class="banner-inner">
+      <div class="banner-left">
+        <div class="banner-spinner"></div>
+        <div class="banner-titles">
+          <div class="banner-file" id="banner-file-name">Downloading Foundation Weights...</div>
+          <div class="banner-meta" id="banner-file-meta">Connecting...</div>
+        </div>
+      </div>
+      <div class="banner-center">
+        <div class="progress-wrap">
+          <div class="progress-bar-bg">
+            <div id="banner-file-fill" class="progress-bar-fill file-fill"></div>
+          </div>
+          <div class="progress-info">
+            <span id="banner-file-pct">0%</span>
+            <span id="banner-speed-eta">-- MB/s • ETA: --</span>
+          </div>
+        </div>
+        <div class="overall-wrap">
+          <div class="overall-label">Total Setup:</div>
+          <div class="progress-bar-bg overall-bg">
+            <div id="banner-overall-fill" class="progress-bar-fill overall-fill"></div>
+          </div>
+          <span id="banner-overall-pct">0%</span>
+        </div>
+      </div>
+      <div class="banner-right" id="banner-action-area">
+        <!-- Will show token prompt if gated model blocked -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOP NAVIGATION HEADER ==================== -->
+  <header class="top">
+    <div class="brand">
+      <div class="mark">LTX</div>
+      <div class="brand-info">
+        <span class="brand-name">LTX 2.5 Studio</span>
+        <span class="brand-sub">ReDetail 2.0 Engine</span>
+      </div>
+    </div>
+    <nav class="topnav" aria-label="Main navigation">
+      <button class="nav-tab active" data-tab="studio">Studio Workspace</button>
+      <button class="nav-tab" data-tab="queue">Queue & History <span id="queue-count-badge" class="badge">0</span></button>
+      <button class="nav-tab" data-tab="system">System & Models</button>
+    </nav>
+    <div class="connection" id="connection">
+      <i class="dot" id="conn-dot"></i>
+      <span id="conn-text">Checking System...</span>
+      <span class="vram-pill" id="vram-pill">VRAM: -- / 32 GB</span>
+      <button id="refresh-btn" class="button alt smallbtn" title="Refresh hardware & queue status">Refresh</button>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN CONTENT CONTAINERS ==================== -->
+  <main class="shell">
+
+    <!-- TAB 1: STUDIO WORKSPACE -->
+    <div id="tab-studio" class="tab-pane active">
+      <div class="studio-grid">
+
+        <!-- LEFT PANEL: CONTROLS & SETTINGS -->
+        <aside class="controls-panel">
+          <div class="panel-scroll">
+
+            <!-- Presets Bar -->
+            <div class="control-group preset-group">
+              <label for="preset-select">Studio Preset</label>
+              <div class="preset-row">
+                <select id="preset-select" class="select-field">
+                  <option value="identity_safe">Faces & Identity Safe (Recommended)</option>
+                  <option value="detail_4k">4K Detail, Single Pass</option>
+                  <option value="max_texture">Max Texture (Pixel, Fast)</option>
+                  <option value="old_footage">Old Footage: Restore then Refine</option>
+                  <option value="low_vram">Low VRAM (GGUF Q4)</option>
+                  <option value="in_place">Re-detail in place (1.0x)</option>
+                </select>
+                <button id="save-preset-btn" class="button alt smallbtn" title="Save current settings as a new preset">Save</button>
+              </div>
+            </div>
+
+            <!-- 1. Source Video Upload -->
+            <section class="box">
+              <div class="box-header">
+                <h2>1. Source Video</h2>
+                <span class="tip">MP4, MOV, WebM</span>
+              </div>
+
+              <div id="dropzone" class="dropzone">
+                <input type="file" id="file-input" class="file-picker" accept="video/mp4,video/quicktime,video/webm">
+                <div class="dropzone-content">
+                  <svg class="upload-icon" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <div class="drop-text">Drag & drop video, or <span class="highlight">browse</span></div>
+                  <div class="drop-sub">Preserves original audio & frame synchronization</div>
+                </div>
+                <div id="upload-progress-wrap" class="upload-progress-wrap" style="display:none;">
+                  <div class="progress-bar-bg">
+                    <div id="upload-progress-fill" class="progress-bar-fill"></div>
+                  </div>
+                  <span id="upload-status-text">Uploading...</span>
+                </div>
+              </div>
+
+              <!-- Uploaded Media Card & Interactive Timeline -->
+              <div id="source-media-card" class="media-card" style="display:none;">
+                <video id="source-player" controls preload="metadata"></video>
+                <div class="meta-pills">
+                  <span id="meta-res" class="pill">--x--</span>
+                  <span id="meta-fps" class="pill">-- fps</span>
+                  <span id="meta-dur" class="pill">--s (-- frames)</span>
+                  <span id="meta-audio" class="pill">Audio: Yes</span>
+                </div>
+
+                <!-- Video Timeline with Filmstrip & Scene Cut Markers -->
+                <div class="timeline-container">
+                  <div class="timeline-header">
+                    <span class="timeline-title">Interactive Timeline & Scene Cuts</span>
+                    <span id="timeline-time" class="timeline-time">0.0s / 0.0s</span>
+                  </div>
+                  <div class="timeline-track" id="timeline-track">
+                    <div class="filmstrip" id="timeline-filmstrip"></div>
+                    <div class="scene-markers" id="scene-markers"></div>
+                    <div class="range-highlight" id="range-highlight"></div>
+                    <div class="timeline-playhead" id="timeline-playhead"></div>
+                  </div>
+                  <div class="timeline-controls">
+                    <label class="range-toggle-label">
+                      <input type="checkbox" id="range-enable-chk"> Set In/Out Range
+                    </label>
+                    <div id="range-inputs" class="range-inputs" style="display:none;">
+                      <span>In: <input type="number" id="range-in" step="0.1" min="0" value="0" class="mini-input">s</span>
+                      <span>Out: <input type="number" id="range-out" step="0.1" min="0" value="0" class="mini-input">s</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- 2. Enhancement Mode -->
+            <section class="box">
+              <div class="box-header">
+                <h2>2. Enhancement Engine & Mode</h2>
+              </div>
+              <div class="mode-cards" role="tablist">
+                <button type="button" class="mode-card active" data-mode="refine">
+                  <div class="mode-title">Refine Details</div>
+                  <div class="mode-desc">Tiled Fusion (1024x576). Locks to source framing, color & faces. Adds photographic micro-texture. Up to 4K.</div>
+                </button>
+                <button type="button" class="mode-card" data-mode="restore">
+                  <div class="mode-title">Restore & De-artifact</div>
+                  <div class="mode-desc">Restore IC-LoRA. Cleans heavy compression, blur, scratches & artifacts from low-res/old footage.</div>
+                </button>
+                <button type="button" class="mode-card" data-mode="pixel">
+                  <div class="mode-title">Pixel Spatial Upscaler</div>
+                  <div class="mode-desc">Generative re-renderer. 2x faster, invents more texture. Faces may drift (use for generic footage).</div>
+                </button>
+              </div>
+
+              <div id="restore-first-row" class="option-row" style="margin-top: 10px;">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="restore-first-chk">
+                  <span>Run Restore pass first, then Refine (Two-stage enhancement for old footage)</span>
+                </label>
+              </div>
+            </section>
+
+            <!-- 3. Target Resolution & Geometry -->
+            <section class="box">
+              <div class="box-header">
+                <h2>3. Resolution & Upscale</h2>
+                <span id="target-res-badge" class="badge highlight-badge">-- x --</span>
+              </div>
+
+              <div class="res-mode-tabs">
+                <button type="button" class="res-tab active" data-resmode="scale">Scale Factor</button>
+                <button type="button" class="res-tab" data-resmode="preset">Dimension Preset</button>
+              </div>
+
+              <div id="scale-control-wrap" class="res-control-wrap">
+                <div class="slider-header">
+                  <span>Upscale Multiplier: <strong id="scale-val">1.50x</strong></span>
+                  <span class="sub-hint">1.0x (In-place) • 1.5x (Sweet spot) • 2.0x (4K)</span>
+                </div>
+                <input type="range" id="scale-slider" min="1.0" max="2.0" step="0.05" value="1.5">
+              </div>
+
+              <div id="preset-control-wrap" class="res-control-wrap" style="display:none;">
+                <label for="long-edge-select">Target Long Edge</label>
+                <select id="long-edge-select" class="select-field">
+                  <option value="1280">720p Class (1280 px)</option>
+                  <option value="1920" selected>Full HD (1920 px)</option>
+                  <option value="2560">2.5K Quad HD (2560 px)</option>
+                  <option value="3840">4K Ultra HD (3840 px)</option>
+                </select>
+              </div>
+
+              <div class="geometry-info" id="geometry-calc-info">
+                Grid: <span id="geom-grid">/32</span> • Aspect delta: <span id="geom-aerr">0.0%</span> • Solved: <span id="geom-actual">1.50x</span>
+              </div>
+            </section>
+
+            <!-- 4. Key Fidelity Controls -->
+            <section class="box">
+              <div class="box-header">
+                <h2>4. Fidelity & Guidance</h2>
+              </div>
+
+              <div class="slider-header">
+                <span>Guide Strength: <strong id="guide-val">1.00</strong></span>
+                <span class="sub-hint">1.0 = Strict Source • &lt;0.6 = Faces Drift</span>
+              </div>
+              <input type="range" id="guide-slider" min="0.3" max="1.0" step="0.05" value="1.0">
+              <div id="guide-warning" class="warning-box" style="display:none;">
+                Warning: Guide strength below 0.6 trades identity fidelity for artificial texture; faces may change significantly.
+              </div>
+
+              <div class="slider-header" style="margin-top: 14px;">
+                <span>IC-LoRA Weight: <strong id="lora-val">1.00</strong></span>
+              </div>
+              <input type="range" id="lora-slider" min="0.0" max="1.5" step="0.05" value="1.0">
+
+              <div class="seed-row" style="margin-top: 14px;">
+                <label for="seed-input">Seed</label>
+                <div class="seed-input-wrap">
+                  <input type="number" id="seed-input" value="42" min="0" max="2147483647">
+                  <button id="seed-dice-btn" class="button alt smallbtn" title="Randomize seed">🎲</button>
+                </div>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="seed-randomize-chk"> Randomize each run
+                </label>
+              </div>
+            </section>
+
+            <!-- 5. Advanced Accordions -->
+            <div class="accordion">
+
+              <!-- Color Consistency & Flicker Protection -->
+              <div class="accordion-item">
+                <button class="accordion-header">
+                  <span>Color Consistency & Flicker Protection</span>
+                  <span class="acc-chevron">▼</span>
+                </button>
+                <div class="accordion-body">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="color-enable-chk" checked>
+                    <strong>Enable Color Consistency Pass</strong>
+                  </label>
+                  <p class="field-hint">Eliminates temporal color flicker and chunk-to-chunk exposure jumps using Lab matching.</p>
+
+                  <div id="color-sub-options">
+                    <label class="checkbox-label" style="margin-top: 8px;">
+                      <input type="checkbox" id="color-auto-chk" checked>
+                      <span>Only apply correction when flicker or drift is detected</span>
+                    </label>
+
+                    <div class="option-field" style="margin-top: 8px;">
+                      <label for="color-mode-select">Matching Mode</label>
+                      <select id="color-mode-select" class="select-field">
+                        <option value="source" selected>Match Original Source (Full color match)</option>
+                        <option value="temporal">Temporal Smoothing Only (Remove flicker)</option>
+                        <option value="seams">Seam Smoothing Only (Smooth chunk cuts)</option>
+                      </select>
+                    </div>
+
+                    <div class="slider-header" style="margin-top: 8px;">
+                      <span>Correction Strength: <strong id="color-str-val">0.70</strong></span>
+                    </div>
+                    <input type="range" id="color-str-slider" min="0.0" max="1.0" step="0.05" value="0.70">
+
+                    <div class="sub-toggles" style="margin-top: 10px;">
+                      <label class="checkbox-label">
+                        <input type="checkbox" id="protect-faces-chk" checked>
+                        <span>Protect Faces (OpenCV Face Detection mask)</span>
+                      </label>
+                      <label class="checkbox-label">
+                        <input type="checkbox" id="protect-skin-chk" checked>
+                        <span>Protect Skin Tones</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Model & Precision -->
+              <div class="accordion-item">
+                <button class="accordion-header">
+                  <span>Model Precision & Text Encoder</span>
+                  <span class="acc-chevron">▼</span>
+                </button>
+                <div class="accordion-body">
+                  <div class="option-field">
+                    <label for="precision-select">Model Precision</label>
+                    <select id="precision-select" class="select-field">
+                      <option value="int8" selected>LTX-2.5 INT8 ConvRot (Fast CUDA Kernels, Recommended)</option>
+                      <option value="gguf">LTX-2.5 Distilled GGUF Q4_K_M (Low VRAM)</option>
+                    </select>
+                  </div>
+
+                  <div class="option-field" id="gguf-file-row" style="display:none; margin-top: 8px;">
+                    <label for="gguf-file-select">GGUF Checkpoint</label>
+                    <select id="gguf-file-select" class="select-field">
+                      <option value="LTX-2.5-Distilled-Q4_K_M.gguf" selected>LTX-2.5-Distilled-Q4_K_M.gguf</option>
+                    </select>
+                  </div>
+
+                  <label class="checkbox-label" style="margin-top: 10px;">
+                    <input type="checkbox" id="cached-cond-chk" checked>
+                    <strong>Use Pre-calculated Cached Conditioning</strong>
+                  </label>
+                  <p class="field-hint">Skips loading the 15.4 GB Gemma 4 Text Encoder. Bit-identical output, saves ~15 GB VRAM/RAM and speeds up render startup.</p>
+
+                  <div id="custom-encoder-sub" style="display:none; margin-top: 8px;">
+                    <div class="option-field">
+                      <label for="encoder-select">Text Encoder File</label>
+                      <select id="encoder-select" class="select-field">
+                        <option value="gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors" selected>gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors</option>
+                      </select>
+                    </div>
+                    <div class="option-field" style="margin-top: 6px;">
+                      <label for="clip-dev-select">Encoder Device</label>
+                      <select id="clip-dev-select" class="select-field">
+                        <option value="default">GPU (Fast)</option>
+                        <option value="cpu">CPU Offload (Saves VRAM)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Prompts -->
+              <div class="accordion-item">
+                <button class="accordion-header">
+                  <span>Text Prompts (Optional)</span>
+                  <span class="acc-chevron">▼</span>
+                </button>
+                <div class="accordion-body">
+                  <div class="option-field">
+                    <label for="pos-prompt">Positive Prompt (Default: ReDetail Style)</label>
+                    <textarea id="pos-prompt" rows="2" placeholder="Leave empty for ReDetail verified natural detail prompt..."></textarea>
+                  </div>
+                  <div class="option-field" style="margin-top: 8px;">
+                    <label for="neg-prompt">Negative Prompt</label>
+                    <textarea id="neg-prompt" rows="2" placeholder="Leave empty for ReDetail verified negative prompt..."></textarea>
+                  </div>
+                  <p class="field-hint">Note: Specifying custom prompts will automatically use the Text Encoder rather than cached conditioning.</p>
+                </div>
+              </div>
+
+              <!-- Sampler & Sigmas -->
+              <div class="accordion-item">
+                <button class="accordion-header">
+                  <span>Sampler & Sigmas</span>
+                  <span class="acc-chevron">▼</span>
+                </button>
+                <div class="accordion-body">
+                  <div class="option-field">
+                    <label for="sampler-select">Sampler</label>
+                    <select id="sampler-select" class="select-field">
+                      <option value="euler" selected>Euler (Default ReDetail)</option>
+                      <option value="euler_ancestral">Euler Ancestral</option>
+                      <option value="heun">Heun</option>
+                      <option value="dpm_2">DPM-2</option>
+                      <option value="lms">LMS</option>
+                      <option value="ddim">DDIM</option>
+                      <option value="uni_pc">UniPC</option>
+                    </select>
+                  </div>
+                  <div class="option-field" style="margin-top: 8px;">
+                    <label for="sigmas-mode-select">Schedule</label>
+                    <select id="sigmas-mode-select" class="select-field">
+                      <option value="distilled" selected>Distilled 8-Step Schedule (Default)</option>
+                      <option value="custom">Custom Sigmas</option>
+                    </select>
+                  </div>
+                  <div id="custom-sigmas-row" style="display:none; margin-top: 8px;">
+                    <label for="custom-sigmas-input">Custom Sigmas</label>
+                    <input type="text" id="custom-sigmas-input" value="1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tiles & Decoders -->
+              <div class="accordion-item">
+                <button class="accordion-header">
+                  <span>Tiles & VAE Decode Tuning</span>
+                  <span class="acc-chevron">▼</span>
+                </button>
+                <div class="accordion-body">
+                  <div class="option-field">
+                    <label for="tile-mode-select">Tiling Dimensions</label>
+                    <select id="tile-mode-select" class="select-field">
+                      <option value="auto" selected>Auto: Trained Tile (1024x576 / 576x1024)</option>
+                      <option value="manual">Manual Dimensions</option>
+                    </select>
+                  </div>
+                  <div id="manual-tiles-row" class="res-row" style="display:none; margin-top: 8px;">
+                    <div>Width: <input type="number" id="tile-w" value="1024" step="32" class="mini-input"></div>
+                    <div>Height: <input type="number" id="tile-h" value="576" step="32" class="mini-input"></div>
+                  </div>
+                  <div class="option-field" style="margin-top: 8px;">
+                    <label for="decode-tile-input">VAE Decode Tile (0 = 512, set 256 if decoding OOMs)</label>
+                    <input type="number" id="decode-tile-input" value="0" step="32" class="mini-input">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Memory & Smart Chunking -->
+              <div class="accordion-item">
+                <button class="accordion-header">
+                  <span>Memory Budget & Smart Chunking</span>
+                  <span class="acc-chevron">▼</span>
+                </button>
+                <div class="accordion-body">
+                  <div class="option-field">
+                    <label for="budget-input">Frame-Megapixels Budget (0 = Auto)</label>
+                    <input type="number" id="budget-input" value="0" step="50" class="mini-input">
+                    <p class="field-hint">Refine mode: Bounds system RAM (~33 MB/frame-MP). Pixel mode: Bounds VRAM.</p>
+                  </div>
+                  <label class="checkbox-label" style="margin-top: 8px;">
+                    <input type="checkbox" id="snap-cuts-chk" checked>
+                    <span>Snap chunk splits onto detected scene transitions</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Audio & Export -->
+              <div class="accordion-item">
+                <button class="accordion-header">
+                  <span>Audio & Container Export</span>
+                  <span class="acc-chevron">▼</span>
+                </button>
+                <div class="accordion-body">
+                  <div class="option-field">
+                    <label for="audio-mode-select">Audio Track</label>
+                    <select id="audio-mode-select" class="select-field">
+                      <option value="original" selected>Original Track (Lossless Mux & Exact Sync)</option>
+                      <option value="generated">Model Generated Track</option>
+                      <option value="none">No Audio (Mute)</option>
+                    </select>
+                  </div>
+                  <div class="option-field" style="margin-top: 8px;">
+                    <label for="codec-select">Video Codec & Format</label>
+                    <div class="res-row">
+                      <select id="container-select" class="select-field">
+                        <option value="mp4" selected>MP4</option>
+                        <option value="mov">MOV</option>
+                        <option value="mkv">MKV</option>
+                      </select>
+                      <select id="codec-select" class="select-field">
+                        <option value="libx264" selected>H.264 (libx264)</option>
+                        <option value="libx265">H.265 (libx265)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="slider-header" style="margin-top: 8px;">
+                    <span>Quality (CRF): <strong id="crf-val">14</strong> (Lower = Higher Bitrate)</span>
+                  </div>
+                  <input type="range" id="crf-slider" min="8" max="28" step="1" value="14">
+                </div>
+              </div>
+
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div class="action-footer">
+              <button id="test-render-btn" class="button alt" disabled>
+                <span>🧪 Quick Test (17 frames)</span>
+              </button>
+              <button id="enhance-btn" class="button primary" disabled>
+                <span>✨ Enhance Video (Full Pass)</span>
+              </button>
+            </div>
+
+          </div>
+        </aside>
+
+        <!-- RIGHT PANEL: ACTIVE MONITOR & COMPARISON -->
+        <section class="monitor-panel">
+
+          <!-- Active Job Card -->
+          <div id="active-job-card" class="active-card" style="display:none;">
+            <div class="active-card-top">
+              <div class="active-job-badge">ACTIVE RENDER</div>
+              <div id="job-title" class="job-title">Job: --</div>
+              <button id="cancel-active-btn" class="button danger smallbtn">Cancel Job</button>
+            </div>
+
+            <div class="active-stage" id="active-stage-text">Initializing pipeline...</div>
+
+            <!-- Dual Progress Bar -->
+            <div class="job-progress-container">
+              <div class="progress-bar-bg main-progress">
+                <div id="active-progress-fill" class="progress-bar-fill"></div>
+              </div>
+              <div class="progress-labels">
+                <span id="active-progress-pct">0%</span>
+                <span id="active-step-info">Step 0/8</span>
+                <span id="active-eta-text">ETA: Calculating...</span>
+              </div>
+            </div>
+
+            <!-- Progress Details Pills -->
+            <div class="job-meta-pills">
+              <span id="pill-chunk" class="pill">Chunk: 1/1</span>
+              <span id="pill-mode" class="pill">Mode: Refine</span>
+              <span id="pill-target" class="pill">Target: --</span>
+              <span id="pill-elapsed" class="pill">Elapsed: 0s</span>
+            </div>
+          </div>
+
+          <!-- Empty State when idle -->
+          <div id="idle-monitor-card" class="idle-card">
+            <div class="idle-icon">🎬</div>
+            <h3>Studio Ready</h3>
+            <p>Upload a video or choose an enhancement mode on the left to begin.</p>
+          </div>
+
+          <!-- Interactive Before / After Split Slider -->
+          <div id="comparison-card" class="comparison-card" style="display:none;">
+            <div class="comp-header">
+              <h3>Before / After Comparison</h3>
+              <div class="comp-legend">
+                <span class="legend-left">◀ Original Source</span>
+                <span class="legend-right">Enhanced Output ▶</span>
+              </div>
+            </div>
+
+            <div class="slider-wrapper" id="comp-wrapper">
+              <img id="comp-img-after" class="comp-img after" src="" alt="Enhanced frame">
+              <div class="comp-overlay" id="comp-overlay">
+                <img id="comp-img-before" class="comp-img before" src="" alt="Original frame">
+              </div>
+              <div class="comp-divider" id="comp-divider">
+                <div class="comp-handle"></div>
+              </div>
+            </div>
+
+            <div class="comp-actions">
+              <a id="download-result-btn" class="button primary" href="#" download>⬇ Download Enhanced Video</a>
+              <button id="view-result-btn" class="button alt">▶ Play Fullscreen</button>
+            </div>
+          </div>
+
+          <!-- Color Analysis & QA Metrics Box -->
+          <div id="color-qa-card" class="qa-card" style="display:none;">
+            <div class="qa-header">
+              <h4>Color Consistency & Flicker Analysis</h4>
+              <span id="qa-verdict-badge" class="badge">Checking...</span>
+            </div>
+            <p id="qa-advice-text" class="qa-advice"></p>
+            <div class="qa-metrics-grid">
+              <div class="qa-metric">
+                <div class="q-label">Luminance Flicker Ratio</div>
+                <div id="q-flicker-l" class="q-val">--</div>
+              </div>
+              <div class="qa-metric">
+                <div class="q-label">Chroma Shift (Lab)</div>
+                <div id="q-chroma-shift" class="q-val">--</div>
+              </div>
+              <div class="qa-metric">
+                <div class="q-label">Seam Jump Status</div>
+                <div id="q-seams" class="q-val">--</div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: QUEUE & HISTORY -->
+    <div id="tab-queue" class="tab-pane" style="display:none;">
+      <div class="pane-content">
+        <div class="pane-header">
+          <h2>Enhancement Jobs & History</h2>
+          <button id="refresh-queue-btn" class="button alt smallbtn">Refresh List</button>
+        </div>
+        <div class="table-wrap">
+          <table class="jobs-table">
+            <thead>
+              <tr>
+                <th>Job ID</th>
+                <th>Source File</th>
+                <th>Mode</th>
+                <th>Target Res</th>
+                <th>Created</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="jobs-table-body">
+              <tr><td colspan="8" class="empty-cell">No enhancement jobs yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: SYSTEM & MODELS -->
+    <div id="tab-system" class="tab-pane" style="display:none;">
+      <div class="pane-content">
+        <div class="pane-header">
+          <h2>Hardware & Model Weights Status</h2>
+        </div>
+
+        <div class="system-grid">
+          <!-- Hardware Card -->
+          <div class="sys-card">
+            <h3>GPU & Hardware Telemetry</h3>
+            <div class="gauge-row">
+              <div class="gauge-item">
+                <div class="gauge-val" id="tele-gpu-name">NVIDIA RTX 5090</div>
+                <div class="gauge-label">GPU Model</div>
+              </div>
+              <div class="gauge-item">
+                <div class="gauge-val" id="tele-vram-text">-- / 32 GB</div>
+                <div class="gauge-label">VRAM Usage</div>
+              </div>
+              <div class="gauge-item">
+                <div class="gauge-val" id="tele-util-text">0%</div>
+                <div class="gauge-label">GPU Utilization</div>
+              </div>
+            </div>
+            <div class="progress-bar-bg" style="margin-top: 10px;">
+              <div id="tele-vram-fill" class="progress-bar-fill"></div>
+            </div>
+            <div class="sub-specs" style="margin-top: 10px;">
+              <div>System RAM: <span id="tele-ram-text">-- GB Free</span></div>
+              <div>Disk Space: <span id="tele-disk-text">-- GB Free</span></div>
+              <div>H3 Studio Mutual Exclusion: <span id="tele-h3-text">Idle</span></div>
+            </div>
+          </div>
+
+          <!-- ComfyUI Worker Card -->
+          <div class="sys-card">
+            <h3>Internal ComfyUI Worker</h3>
+            <div class="comfy-status-row">
+              <div>Status: <span id="worker-status-badge" class="badge">Running</span></div>
+              <div>PID: <span id="worker-pid">--</span></div>
+              <div>Port: <span id="worker-port">8189</span></div>
+            </div>
+            <div class="comfy-actions" style="margin-top: 14px;">
+              <button id="worker-restart-btn" class="button alt smallbtn">Restart Worker</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Models Status Table -->
+        <h3 style="margin-top: 24px;">LTX 2.5 Neural Checkpoints & LoRAs</h3>
+        <div class="table-wrap" style="margin-top: 10px;">
+          <table class="jobs-table">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>File</th>
+                <th>Size</th>
+                <th>Downloaded</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="models-table-body">
+              <tr><td colspan="5" class="empty-cell">Loading models...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Hugging Face Token Configuration -->
+        <div class="sys-card" style="margin-top: 24px;">
+          <h3>Hugging Face Token Configuration</h3>
+          <p class="field-hint">If downloading gated Hugging Face weights directly, you can save your read token here.</p>
+          <div class="token-input-row" style="margin-top: 8px;">
+            <input type="password" id="hf-token-input" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxx" class="select-field">
+            <button id="save-token-btn" class="button primary smallbtn">Save Token</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Video Modal for Preview Playback -->
+  <div id="video-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-video-title">Enhanced Video Player</h3>
+        <button id="close-modal-btn" class="close-btn">&times;</button>
+      </div>
+      <video id="modal-video-player" controls autoplay></video>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

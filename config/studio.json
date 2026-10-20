@@ -1,0 +1,12 @@
+{
+  "host": "0.0.0.0",
+  "port": 7860,
+  "comfy_port": 8189,
+  "reserve_vram_gb": 2.0,
+  "attention": "pytorch",
+  "coordinate_h3": true,
+  "h3_url": "http://127.0.0.1:8188",
+  "release_vram_idle_s": 90,
+  "auto_resume_jobs": true,
+  "comfy_extra_args": []
+}
