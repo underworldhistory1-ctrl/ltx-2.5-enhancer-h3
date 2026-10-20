@@ -52,18 +52,8 @@ class JobManager:
                 pass
 
     async def _check_h3_busy(self) -> bool:
-        """Checks whether the shared GPU is currently executing a MiniMax H3 render on port 8188."""
-        try:
-            s = await self.engine.comfy.session()
-            async with s.get("http://127.0.0.1:8188/queue", timeout=aiohttp.ClientTimeout(total=2)) as r:
-                if r.status == 200:
-                    data = await r.json()
-                    running = len(data.get("queue_running", [])) > 0
-                    pending = len(data.get("queue_pending", [])) > 0
-                    return running or pending
-        except Exception:
-            pass
-        return False
+        """Checks whether the shared GPU is currently executing, decoding, or encoding a MiniMax H3 render."""
+        return await self.engine.check_h3_busy()
 
     async def submit_job(self, input_video_path: str, settings: dict, name: str = None) -> dict:
         job_id = new_id("ltx")

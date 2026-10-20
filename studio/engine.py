@@ -4,6 +4,7 @@ import asyncio, copy, json, math, os, shutil, subprocess, time, uuid
 from pathlib import Path
 
 import aiohttp
+import psutil
 
 from common import ROOT, DIRS, load_config, atomic_write_json, read_json, fmt_eta
 from video import probe_video, detect_scene_cuts, target_resolution, smart_chunking, render_length_8n1
@@ -21,36 +22,109 @@ class Engine:
     def __init__(self, comfy_client: ComfyClient = None):
         self.comfy = comfy_client or ComfyClient()
 
+    async def free_h3_cache(self):
+        """Politely requests H3 ComfyUI on port 8188 to unload cached models and free PyTorch VRAM."""
+        cfg = load_config()
+        h3_url = cfg.get("h3_url", "http://127.0.0.1:8188").rstrip("/")
+        try:
+            async with aiohttp.ClientSession() as s:
+                await s.post(f"{h3_url}/free", json={"unload_models": True, "free_memory": True}, timeout=aiohttp.ClientTimeout(total=4))
+        except Exception:
+            pass
+
     async def check_h3_busy(self) -> bool:
-        """Checks if H3 Studio on port 8188 is actively running a render."""
+        """Multi-tiered check: verifies if H3 Studio on port 8188 is actively running, decoding, encoding, or holding GPU memory."""
         cfg = load_config()
         if not cfg.get("coordinate_h3", True):
             return False
         h3_url = cfg.get("h3_url", "http://127.0.0.1:8188").rstrip("/")
+
+        # Tier 1: Check ComfyUI 8188 HTTP Queue
         try:
             async with aiohttp.ClientSession() as s:
-                async with s.get(f"{h3_url}/queue", timeout=aiohttp.ClientTimeout(total=3)) as r:
+                async with s.get(f"{h3_url}/queue", timeout=aiohttp.ClientTimeout(total=8)) as r:
                     if r.status == 200:
                         data = await r.json()
                         running = data.get("queue_running", [])
                         pending = data.get("queue_pending", [])
-                        return len(running) > 0 or len(pending) > 0
+                        if len(running) > 0 or len(pending) > 0:
+                            return True
+                    else:
+                        # Non-200 means server is restarting, erroring, or locked
+                        return True
+        except (asyncio.TimeoutError, aiohttp.ServerTimeoutError):
+            # When H3 is under heavy compute/decoding, its event loop is sluggish -> assume busy!
+            return True
+        except Exception:
+            # Unreachable / connection refused: H3 server may be down or starting
+            pass
+
+        # Tier 2: Check for active encoding / ffmpeg processes under H3 or ComfyUI
+        try:
+            for p in psutil.process_iter(["pid", "name", "cmdline"]):
+                name = p.info.get("name", "").lower()
+                if "ffmpeg" in name or "ffprobe" in name:
+                    cmd = " ".join(p.info.get("cmdline") or [])
+                    if "ComfyUI" in cmd or "h3" in cmd or "output" in cmd:
+                        return True
         except Exception:
             pass
+
+        # Tier 3: Physical GPU VRAM and Process Memory Guard
+        try:
+            g = sysmon.gpu_info()
+            if g.get("available") and g.get("vram_total_mb"):
+                free_mb = g["vram_total_mb"] - g.get("vram_used_mb", 0)
+
+                # Identify LTX's own worker PID
+                ltx_worker_pid = None
+                p2 = DIRS["state"] / "comfy.pid"
+                if p2.exists():
+                    try:
+                        ltx_worker_pid = json.loads(p2.read_text()).get("pid")
+                    except Exception:
+                        pass
+
+                # Sum VRAM of all other processes on the GPU (e.g. H3 PID 131001)
+                other_procs_vram = 0
+                for proc in g.get("procs", []):
+                    if proc["pid"] != ltx_worker_pid:
+                        other_procs_vram += proc.get("mb", 0)
+
+                # If H3 or other apps are holding > 4GB VRAM, H3 is still resident/caching/decoding
+                if other_procs_vram > 4000:
+                    return True
+
+                # If total free VRAM is under 20 GB, there's not enough room to safely run 22B LTX
+                if free_mb < 20000:
+                    return True
+        except Exception:
+            pass
+
         return False
 
     async def wait_for_gpu_vram(self, job: dict, on_update):
-        """Coordinates GPU access: if H3 Studio is actively rendering, waits until GPU frees up."""
+        """Coordinates GPU access: if H3 Studio is actively rendering, decoding, or encoding, waits until GPU frees up."""
         waited = 0
-        max_wait = 1800
+        max_wait = 7200  # up to 2 hours
         while waited < max_wait:
             if job.get("status") == "cancelled":
                 raise JobCancelled()
             h3_busy = await self.check_h3_busy()
             free_mb = sysmon.free_vram_mb()
-            if not h3_busy and (free_mb is None or free_mb >= 8192):
-                break
-            msg = f"Waiting for GPU (H3 Studio busy or <8GB VRAM free: {free_mb:.0f} MB)..." if free_mb else "Waiting for GPU..."
+            if not h3_busy and (free_mb is None or free_mb >= 20000):
+                # Settle cooldown: wait 6 seconds to ensure any final encoding / file writes have fully settled
+                await asyncio.sleep(6)
+                # Request H3 to release unused PyTorch cached VRAM
+                await self.free_h3_cache()
+                await asyncio.sleep(2)
+                # Final check after settle
+                h3_busy_again = await self.check_h3_busy()
+                free_mb_again = sysmon.free_vram_mb()
+                if not h3_busy_again and (free_mb_again is None or free_mb_again >= 20000):
+                    break
+
+            msg = f"Waiting for GPU (H3 Studio busy/encoding or <20GB VRAM free: {free_mb:.0f} MB)..." if free_mb else "Waiting for GPU (H3 Studio active)..."
             job["stage"] = msg
             job["eta_text"] = "Queued (Waiting for GPU)"
             on_update(job)
