@@ -263,6 +263,7 @@ async def handle_delete_job(request):
 
 @routes.post("/api/jobs/{id}/restart")
 @routes.post("/api/jobs/{id}/retry")
+@routes.post("/api/jobs/{id}/requeue")
 async def handle_restart_job(request):
     jid = request.match_info["id"]
     try:
