@@ -190,6 +190,28 @@ def is_pid_alive(pid):
         return False
 
 
+def find_pid_by_port(port):
+    """Finds process ID listening on a given port."""
+    import re
+    try:
+        r = subprocess.run(["ss", "-tulpn"], capture_output=True, text=True, timeout=2)
+        if r.returncode == 0:
+            for line in r.stdout.splitlines():
+                if f":{port} " in line or f":{port}\t" in line:
+                    match = re.search(r"pid=(\d+)", line)
+                    if match:
+                        return int(match.group(1))
+    except Exception:
+        pass
+    try:
+        r = subprocess.run(["lsof", "-t", "-i", f":{port}"], capture_output=True, text=True, timeout=2)
+        if r.returncode == 0 and r.stdout.strip():
+            return int(r.stdout.strip().split()[0])
+    except Exception:
+        pass
+    return None
+
+
 def get_running_pids():
     studio_pid = None
     comfy_pid = None
@@ -212,6 +234,19 @@ def get_running_pids():
                 comfy_pid = val
         except Exception:
             pass
+
+    cfg = load_studio_config()
+    if not studio_pid:
+        p = find_pid_by_port(cfg.get("port", 7860))
+        if p and is_pid_alive(p):
+            studio_pid = p
+            (STATE_DIR / "studio.pid").write_text(str(p))
+
+    if not comfy_pid:
+        p = find_pid_by_port(cfg.get("comfy_port", 8189))
+        if p and is_pid_alive(p):
+            comfy_pid = p
+            (STATE_DIR / "comfy.pid").write_text(json.dumps({"pid": p}))
 
     return studio_pid, comfy_pid
 
